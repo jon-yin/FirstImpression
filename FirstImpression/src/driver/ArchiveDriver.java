@@ -5,9 +5,11 @@ import java.time.Period;
 import java.util.List;
 
 import debug.TweetDebugger;
+import logic.ConfigTwitter;
 import logic.TweetDownloaderImproved;
 import logic.TweetRetriever;
 import twitter4j.Status;
+import twitter4j.Twitter;
 import twitter4j.TwitterException;
 
 public class ArchiveDriver {
