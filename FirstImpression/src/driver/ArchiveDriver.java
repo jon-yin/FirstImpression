@@ -16,6 +16,9 @@ public class ArchiveDriver {
 	
 	public static void main(String[] args) throws TwitterException {
 		
+		Twitter twitter = ConfigTwitter.getTwitter();
+		twitter.set
+		/*
 		TweetRetriever retriever = new TweetRetriever();
 		TweetDebugger debugger = new TweetDebugger();
 		TweetDownloaderImproved mytest = new TweetDownloaderImproved(5, -1);
@@ -29,7 +32,7 @@ public class ArchiveDriver {
 		startTime = System.nanoTime();
 		System.out.println(mytest.startDownload(testStatuses, false, false));
 		System.out.println("Multithreaded-execution: " + (System.nanoTime()-startTime));
-		
+		*/
 		
 	}
 }
