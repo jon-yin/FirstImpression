@@ -1,0 +1,3 @@
+# FirstImpression
+
+A small, solo project to, in its completed version, provide an analysis of tweets made by specific users as well as tweets relating to specific topics. Final features for this project include getting a "first impression" of a topic or user by analyzing tweets related to them (overall popularity and common topics originating from them). Also, I plan to allow mass downloading of tweets from the above sources. Uses the twitter4j library to retrieve tweets.
