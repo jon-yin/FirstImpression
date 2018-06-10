@@ -24,54 +24,100 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.prefs.Preferences;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-
-import logic.TweetDownloader.VideoQuality;
 import twitter4j.MediaEntity;
 import twitter4j.MediaEntity.Variant;
 import twitter4j.Status;
 
 /**
- * An improved version of my original TweetDownloader which supports multithreading, a data limit, and reusability.
- * Will support zip file downloading in the future.
+ * An improved version of my original TweetDownloader which supports
+ * multithreading, a data limit, and reusability. Will support zip file
+ * downloading in the future.
+ * 
  * @author Jonathan Yin
  *
  */
 public class TweetDownloaderImproved {
-	
+
 	private int threads;
 	public static final String PHOTO_EXTENSION = ".jpg";
 	public static final String GIF_EXTENSION = ".gif";
-	public DownloadStyle style = DownloadStyle.SEPERATE_UNZIPPED;
 	private String filepath;
 	public static final int BUFFER_SIZE = 1024;
 	private long limit;
 	private long left;
 	private Preferences prefs;
-
+	private VideoQuality quality;
+	
 	/**
-	 * Decides whether to download the text & media of tweets as a seperate text
-	 * & img file or as an HTML file, right now, this only supports seperate
-	 * file downloading.
-	 * 
+	 * This is used to determine what quality to download videos from, quality is determined by number of pixels.
 	 * @author Jonathan Yin
 	 *
 	 */
-	public enum DownloadStyle {
-		SEPERATE_UNZIPPED, SEPERATE_ZIPPED, HTML
+	public enum VideoQuality {
+		/**
+		 * Smallest resolution
+		 */
+		VERYLOW,
+		/**
+		 * 25th percentile in resolution
+		 */
+		LOW,
+		/**
+		 * 50th percentile in resolution
+		 */
+		MEDIUM,
+		/**
+		 * 75th percentile in resolution
+		 */
+		HIGH, 
+		/**
+		 * Best resolution
+		 */
+		HIGHEST;
 	}
 
+	
+	/**
+	 * Constructs a reusable downloader client for Status objects.
+	 * @param filepath The directory to dump the downloaded files 
+	 * @param threads The number of threads to run the downloader with (<= 1 is considered single threaded)
+	 * @param limit Limit in bytes of amount of data to download, -1 is considered as no limit.
+	 * @param quality The quality to download videos from.
+	 */
+	public TweetDownloaderImproved(String filepath, int threads, long limit, VideoQuality quality) {
+		this.filepath = filepath;
+		this.threads = threads;
+		this.limit = limit;
+		this.quality = quality;
+	}
+
+	
+	/**
+	 * Constructs a reusable downloader client for Status objects. Quality defaults to the highest resolution possible.
+	 * @param filepath The directory to dump the downloaded files 
+	 * @param threads The number of threads to run the downloader with (<= 1 is considered single threaded)
+	 * @param limit Limit in bytes of amount of data to download, -1 is considered as no limit.
+	 */
 	public TweetDownloaderImproved(String filepath, int threads, long limit) {
 		this.filepath = filepath;
 		this.threads = threads;
 		this.limit = limit;
+		quality = VideoQuality.HIGHEST;
 	}
 
 	/**
-	 * Constructs a reusable downloader client for Status objects. Filepath is drawn either from preferences or in the cwd if 
-	 * such a preference doesn't exist yet.
-	 * @param threads Number of threads to run the downloader with (<= 1 is interpreted as single threaded)
-	 * @param limit Limit in bytes of the amount of data to download from statuses.
+	 * Constructs a reusable downloader client for Status objects. Filepath is
+	 * drawn either from preferences or in the cwd if such a preference doesn't
+	 * exist yet. Quality defaults to the highest resolution possible.
+	 * 
+	 * @param threads
+	 *            Number of threads to run the downloader with (<= 1 is
+	 *            interpreted as single threaded)
+	 * @param limit
+	 *            Limit in bytes of the amount of data to download from
+	 *            statuses.
 	 */
 	public TweetDownloaderImproved(int threads, long limit) {
 		Preferences prefs = Preferences.userRoot();
@@ -80,15 +126,66 @@ public class TweetDownloaderImproved {
 		filepath = prefs.get("defaultpath", "./twitterdump");
 		Path path = Paths.get(filepath);
 		filepath = path.toAbsolutePath().normalize().toString();
-		System.out.println(filepath);
+		//System.out.println(filepath);
 		this.threads = threads;
-		// service = Executors.newFixedThreadPool(threads);
 		this.limit = limit;
+		quality = VideoQuality.HIGHEST;
+	}
+	
+	/**
+	 * Constructs a reusable downloader client for Status objects. Filepath is
+	 * drawn either from preferences or in the cwd if such a preference doesn't
+	 * exist yet.
+	 * 
+	 * @param threads
+	 *            Number of threads to run the downloader with (<= 1 is
+	 *            interpreted as single threaded)
+	 * @param limit
+	 *            Limit in bytes of the amount of data to download from
+	 *            statuses.
+	 * @param quality
+	 * 			  The video resolution quality to download videos at.
+	 */
+	public TweetDownloaderImproved(int threads, long limit, VideoQuality quality) {
+		Preferences prefs = Preferences.userRoot();
+		prefs = prefs.node(UtilityMethods.PREFERENCES_PATH);
+		this.prefs = prefs;
+		filepath = prefs.get("defaultpath", "./twitterdump");
+		Path path = Paths.get(filepath);
+		filepath = path.toAbsolutePath().normalize().toString();
+		//System.out.println(filepath);
+		this.threads = threads;
+		this.limit = limit;
+		quality = VideoQuality.HIGHEST;
+	}
+	
+	/**
+	 * Constructs a reusable downloader client for Status objects. Filepath is
+	 * drawn either from preferences or in the cwd if such a preference doesn't
+	 * exist yet. This will run single-threadly though this can be altered with setThreads.
+	 * @param limit
+	 *            Limit in bytes of the amount of data to download from
+	 *            statuses.
+	 */
+	public TweetDownloaderImproved(long limit) {
+		Preferences prefs = Preferences.userRoot();
+		prefs = prefs.node(UtilityMethods.PREFERENCES_PATH);
+		this.prefs = prefs;
+		filepath = prefs.get("defaultpath", "./twitterdump");
+		Path path = Paths.get(filepath);
+		filepath = path.toAbsolutePath().normalize().toString();
+		//System.out.println(filepath);
+		this.threads = 1;
+		this.limit = limit;
+		quality = VideoQuality.HIGHEST;
 	}
 
 	/**
-	 * Retrieves the URLs of the media (videos and images) present in this status.
-	 * @param status tweet to retreive from
+	 * Retrieves the URLs of the media (videos and images) present in this
+	 * status.
+	 * 
+	 * @param status
+	 *            tweet to retreive from
 	 * @return A list of URLs linking to the media data.
 	 */
 	public List<URL> getMedia(Status status) {
@@ -105,7 +202,6 @@ public class TweetDownloaderImproved {
 	}
 
 	private URL downloadImage(MediaEntity entity) {
-		String type = entity.getType();
 		try {
 			URL mediaURL = new URL(entity.getMediaURL());
 			return mediaURL;
@@ -157,7 +253,9 @@ public class TweetDownloaderImproved {
 
 	/**
 	 * Downloads data from a URL and places it into a byte array.
-	 * @param source The URL to download data from.
+	 * 
+	 * @param source
+	 *            The URL to download data from.
 	 * @return A byte array of the data retrieved from the URL.
 	 */
 	public byte[] downloadMediaFromURL(URL source) {
@@ -192,19 +290,14 @@ public class TweetDownloaderImproved {
 		return null;
 	}
 
-	private long downloadTweets(List<Status> statuses, boolean mediaOnly) {
+	private long downloadTweets(List<Status> statuses, boolean mediaOnly, ZipOutputStream zstream, File dest) {
 		left = limit;
-		File rootpath = new File(filepath);
-		String dirname = LocalDateTime.now().toString().replaceAll(":", "-");
-		File rootdir = new File(rootpath, "/" + dirname);
-		rootdir.mkdir();
 		long totalSize = 0;
 		for (Status status : statuses) {
 			boolean download = false;
 			DownloadInfo info = checkTweetSize(status);
 			long size = info.getSize();
-			if (mediaOnly)
-			{
+			if (mediaOnly) {
 				size -= info.getBody().getBytes().length;
 			}
 			if (info != null && limit != -1) {
@@ -213,7 +306,7 @@ public class TweetDownloaderImproved {
 						left -= size;
 						download = true;
 					}
-					
+
 				}
 			} else {
 				download = true;
@@ -221,8 +314,7 @@ public class TweetDownloaderImproved {
 			if (download) {
 				String date = UtilityMethods.convertDateToLocalDateTime(status.getCreatedAt()).toString();
 				String windowsFriendly = date.replaceAll(":", "-");
-				if (downloadFiles(rootdir, status.getUser().getScreenName() + windowsFriendly, info, null, mediaOnly))
-				{
+				if (downloadFiles(dest, status.getUser().getScreenName() + windowsFriendly, info, zstream, mediaOnly)) {
 					totalSize += size;
 				}
 			}
@@ -231,12 +323,8 @@ public class TweetDownloaderImproved {
 		return totalSize;
 	}
 
-	private long downloadTweetsTextOnly(List<Status> statuses) {
+	private long downloadTweetsTextOnly(List<Status> statuses, ZipOutputStream zstream, File dest) {
 		left = limit;
-		File rootpath = new File(filepath);
-		String dirname = LocalDateTime.now().toString().replaceAll(":", "-");
-		File rootdir = new File(rootpath, "/" + dirname);
-		rootdir.mkdir();
 		long totalSize = 0;
 		boolean download = false;
 		for (Status status : statuses) {
@@ -254,8 +342,8 @@ public class TweetDownloaderImproved {
 			if (download) {
 				String date = UtilityMethods.convertDateToLocalDateTime(status.getCreatedAt()).toString();
 				String windowsFriendly = date.replaceAll(":", "-");
-				if (downloadFilesTextOnly(rootdir, status.getUser().getScreenName() + windowsFriendly, status.getText(),
-						null)) {
+				if (downloadFilesTextOnly(dest, status.getUser().getScreenName() + windowsFriendly, status.getText(),
+						zstream)) {
 					totalSize += size;
 				}
 			}
@@ -268,10 +356,16 @@ public class TweetDownloaderImproved {
 		try {
 			// Ensure not just white space.
 			if (!text.matches("\\s*")) {
-				String bodyname = "/" + name + "-text.txt";
-				BufferedWriter writer = new BufferedWriter(new FileWriter(new File(rootdir, bodyname)));
-				writer.write(text);
-				writer.close();
+				// Non zipped version
+				if (zip == null) {
+					String bodyname = "/" + name + "-text.txt";
+					BufferedWriter writer = new BufferedWriter(new FileWriter(new File(rootdir, bodyname)));
+					writer.write(text);
+					writer.close();
+				} else {
+					String bodyname = name + "-text.txt";
+					return writeZipEntry(zip, bodyname, text.getBytes(), false);
+				}
 				return true;
 			}
 		} catch (IOException e) {
@@ -284,20 +378,38 @@ public class TweetDownloaderImproved {
 		String body = info.getBody();
 		try {
 			if (!body.matches("\\s*") && !mediaOnly) {
-				String bodyname = "/" + name + "-text.txt";
-				FileWriter stream = new FileWriter(new File(parent, bodyname));
-				stream.write(body);
-				stream.close();
+				if (zip == null) {
+					String bodyname = "/" + name + "-text.txt";
+					FileWriter stream = new FileWriter(new File(parent, bodyname));
+					stream.write(body);
+					stream.close();
+				}
+				else
+				{
+					String bodyname = name + "-text.txt";
+					if (!writeZipEntry(zip, bodyname, body.getBytes(), false))
+					{
+						return false;
+					}
+				}
 			}
 			List<URL> urls = info.getOriginalURLs();
 			List<byte[]> data = info.getDatas();
 			for (int i = 0; i < urls.size(); i++) {
 				String extension = getExtensionFromURL(urls.get(i));
-				String medianame = "/" + name + "-media" + i + extension;
-				File media = new File(parent, medianame);
-				BufferedOutputStream outputstream = new BufferedOutputStream(new FileOutputStream(media));
-				outputstream.write(data.get(i));
-				outputstream.flush();
+				if (zip == null){
+					String medianame = "/" + name + "-media" + i + extension;
+					File media = new File(parent, medianame);
+					BufferedOutputStream outputstream = new BufferedOutputStream(new FileOutputStream(media));
+					outputstream.write(data.get(i));
+					outputstream.flush();
+					outputstream.close();
+				}
+				else
+				{
+					String medianame = name + "-media" + i + extension;
+					writeZipEntry(zip, medianame, data.get(i), false);
+				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -322,129 +434,227 @@ public class TweetDownloaderImproved {
 			return queryString;
 		}
 	}
-	
+
 	/**
-	 * Generic method which splits a List of items into evenly partitioned sublists.
-	 * @param items The total list to split data from.
-	 * @param partitions The number of sublists to form
-	 * @return A List of lists where each list contains relatively the same number of elements. Note that the number of sublists
-	 * may be less than the numbe of partitions requested based on the size of the items list.
+	 * Generic method which splits a List of items into evenly partitioned
+	 * sublists.
+	 * 
+	 * @param items
+	 *            The total list to split data from.
+	 * @param partitions
+	 *            The number of sublists to form
+	 * @return A List of lists where each list contains relatively the same
+	 *         number of elements. Note that the number of sublists may be less
+	 *         than the numbe of partitions requested based on the size of the
+	 *         items list.
 	 */
-	public <T> List<List<T>> splitList(List<T> items, int partitions)
-	{
-		List<List<T>> split= new ArrayList<>();
-		if (items.size() <= partitions)
-		{
-			for (int i = 0; i < items.size(); i++)
-			{
-				split.add(items.subList(i, i+1));
+	public <T> List<List<T>> splitList(List<T> items, int partitions) {
+		List<List<T>> split = new ArrayList<>();
+		if (items.size() <= partitions) {
+			for (int i = 0; i < items.size(); i++) {
+				split.add(items.subList(i, i + 1));
 			}
-		}
-		else
-		{
-			for (int i = 0; i < partitions; i++)
-			{
+		} else {
+			for (int i = 0; i < partitions; i++) {
 				List<T> splitList = items.subList(items.size() * i / partitions, items.size() * (i + 1) / partitions);
 				split.add(splitList);
 			}
 		}
 		return split;
 	}
-	
+
 	/**
 	 * Downloads the list of statuses into the directory filepath.
-	 * @param statuses The tweets to download data from.
-	 * @param mediaOnly Whether to include only media, not text
-	 * @param textOnly Whether to include only text, not media (if this is true, then mediaOnly is ignored)
+	 * 
+	 * @param statuses
+	 *            The tweets to download data from.
+	 * @param mediaOnly
+	 *            Whether to include only media, not text
+	 * @param textOnly
+	 *            Whether to include only text, not media (if this is true, then
+	 *            mediaOnly is ignored)
 	 * @return The total number of bytes downloaded.
 	 */
-	public long startDownload(List<Status> statuses, boolean mediaOnly, boolean textOnly)
-	{
-		left = limit;
-		if (threads <= 1)
-		{
-			if (textOnly)
-			{
-				return downloadTweetsTextOnly(statuses);
+	public long startDownload(List<Status> statuses, boolean mediaOnly, boolean textOnly, boolean zip) {
+		// Make the directory/Zipstream
+		String dirname = LocalDateTime.now().toString().replaceAll(":", "-");
+		// a zip was requested, make a zipoutputstream to contain the data.
+		File destFile = new File(filepath, "/" + dirname);
+		ZipOutputStream stream = null;
+		if (zip) {
+			//Create a zip stream
+			try {
+				stream = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(destFile + ".zip")));
+				stream.setLevel(9);
+			} catch (IOException ex) {
+				ex.printStackTrace();
+				return 0;
 			}
-			else
-			{
-				return downloadTweets(statuses,mediaOnly);
-			}
+		} else {
+			// Create a directory
+			destFile.mkdir();
 		}
-		else
-		{
+		left = limit;
+		if (threads <= 1) {
+			long size;
+			if (textOnly) {
+				size = downloadTweetsTextOnly(statuses, stream, destFile);
+			} else {
+				size = downloadTweets(statuses, mediaOnly, stream, destFile);
+			}
+			if (zip) {
+				try {
+					stream.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+			return size;
+		} else {
 			ExecutorService service = Executors.newFixedThreadPool(threads);
 			List<List<Status>> partitioned = splitList(statuses, threads);
 			List<Future<Long>> results = new ArrayList<>();
-			for (List<Status> partitionedWork : partitioned)
-			{
-				results.add(service.submit(new DownloadThread(partitionedWork, textOnly, mediaOnly)));
+			for (List<Status> partitionedWork : partitioned) {
+				results.add(service.submit(new DownloadThread(partitionedWork, textOnly, mediaOnly, stream, destFile)));
 			}
 			long totalSize = 0;
-			for (Future<Long> result : results)
-			{
+			for (Future<Long> result : results) {
 				try {
 					totalSize += result.get();
+					// Shouldn't happen.
 				} catch (InterruptedException | ExecutionException e) {
 					e.printStackTrace();
 				}
 			}
 			service.shutdown();
+			// Remember to close the ZipOutputStream (only if zip was enabled)
+			if (zip) {
+				try {
+					stream.close();
+				} catch (IOException exception) {
+					exception.printStackTrace();
+				}
+			}
 			return totalSize;
 		}
 	}
 
+	/**
+	 * Gets the directory where downloaded data will be delivered to
+	 * @return directory as String
+	 */
 	public String getFilepath() {
 		return filepath;
 	}
 
+	/**
+	 * Changes the directory where downloaded data will be delivered to
+	 * @param filepath New directory to dump data.
+	 */
 	public void setFilepath(String filepath) {
 		this.filepath = filepath;
 	}
 
+	/**
+	 * Gets the number of threads to run when starting a download
+	 * @return number of threads to run per download
+	 */
 	public int getThreads() {
 		return threads;
 	}
 
+	/**
+	 * Changes the number of threads to run when starting a download. (<=1 will be singlethreaded)
+	 * @param threads The new number of threads to run per download
+	 */
 	public void setThreads(int threads) {
 		this.threads = threads;
 	}
+	
+	/**
+	 * The max number of bytes allowable to download per startDownload
+	 * @return max number of bytes to download
+	 */
 
 	public long getLimit() {
 		return limit;
 	}
+	
+	/**
+	 * Changes the max number of bytes to download per download, -1 is considered no limit.
+	 * @param limit The new max number of bytes to download.
+	 */
 
 	public void setLimit(long limit) {
 		this.limit = limit;
 	}
 	
-	public class DownloadThread implements Callable<Long>
-	{
-		
+	/**
+	 * Gets the preferred video quality to download from.
+	 * @return The video quality that future videos will be downloaded from.
+	 */
+	public VideoQuality getQuality() {
+		return quality;
+	}
+
+	/**
+	 * Changes the quality from which to download videos from.
+	 * @param quality The new quality to download videos from.
+	 */
+	public void setQuality(VideoQuality quality) {
+		this.quality = quality;
+	}
+
+	// Writes a zip entry in a way that is concurrency safe. (lock each entry
+	// write). Assumes that name is well formatted to zip directory + files
+	// within directories
+	private boolean writeZipEntry(ZipOutputStream stream, String name, byte[] data, boolean isDirectory) {
+		try {
+			synchronized (stream) {
+				if (isDirectory) {
+					stream.putNextEntry(new ZipEntry(name));
+					stream.closeEntry();
+					return true;
+				} else {
+					stream.putNextEntry(new ZipEntry(name));
+					stream.write(data);
+					stream.closeEntry();
+					return true;
+				}
+			}
+		} catch (IOException e) {
+			return false;
+		}
+	}
+
+	public class DownloadThread implements Callable<Long> {
+
 		private List<Status> statuses;
 		private boolean textOnly;
 		private boolean mediaOnly;
-		
-		public DownloadThread(List<Status> statuses, boolean textOnly, boolean mediaOnly)
-		{
+		private ZipOutputStream zipStream;
+		private File dest;
+
+		public DownloadThread(List<Status> statuses, boolean textOnly, boolean mediaOnly, ZipOutputStream stream,
+				File dest) {
 			this.statuses = statuses;
 			this.textOnly = textOnly;
 			this.mediaOnly = mediaOnly;
+			this.zipStream = stream;
+			this.dest = dest;
 		}
-		
+
 		@Override
 		public Long call() throws Exception {
-			if (textOnly)
-			{
-				return downloadTweetsTextOnly(statuses);
-			}
-			else
-			{
-				return downloadTweets(statuses, mediaOnly);
+			if (textOnly) {
+				return downloadTweetsTextOnly(statuses, zipStream, dest);
+			} else {
+				return downloadTweets(statuses, mediaOnly, zipStream, dest);
 			}
 		}
-		
+
 	}
+	
+	
 
 }
