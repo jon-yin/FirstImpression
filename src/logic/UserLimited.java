@@ -1,4 +1,4 @@
-package ratelimit;
+package logic;
 
 import java.util.Set;
 
@@ -8,7 +8,7 @@ import java.util.Set;
  * @author Jonathan Yin
  *
  */
-public class FollowersLimited {
+public class UserLimited {
 
 	private Set<Long> followers;
 	private long lastCursor;

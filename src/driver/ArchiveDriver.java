@@ -1,22 +1,20 @@
 package driver;
 
-import java.util.List;
+import java.util.HashMap;
 
-import logic.TweetDownloaderImproved;
-import logic.TweetRetriever;
+import logic.Retriever;
+import logic.SearchLimited;
+import twitter4j.Query.ResultType;
 import twitter4j.Status;
 import twitter4j.TwitterException;
 
 public class ArchiveDriver {
 	
+	public static final String FILEPATH = "C:\\Users\\hgfddfgh\\Documents\\ReadForProject\\TwitterDump";
+	
 	public static void main(String[] args) throws TwitterException {
-		TweetDownloaderImproved downloader = new TweetDownloaderImproved(1, -1);
-		TweetRetriever retriever = new TweetRetriever();
-		List<Status> tweets = retriever.getAllTweets("MeidocafeR", 200);
-		//downloader.startDownload(tweets, false, false, true);
-		downloader.startDownload(tweets, true, false, true);
-		//downloader.startDownload(tweets, false, true, true);
-		
-		
+		SearchLimited lim = Retriever.searchRL("mcdonalds", -1, null, null);
+		System.out.println(lim);
+		System.out.println(lim.getStatuses().size()); 
 	}
 }

@@ -26,6 +26,7 @@ import java.util.prefs.Preferences;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
 import twitter4j.MediaEntity;
 import twitter4j.MediaEntity.Variant;
 import twitter4j.Status;
@@ -47,33 +48,32 @@ public class TweetDownloaderImproved {
 	public static final int BUFFER_SIZE = 1024;
 	private long limit;
 	private long left;
-	private Preferences prefs;
 	private VideoQuality quality;
 	
 	/**
-	 * This is used to determine what quality to download videos from, quality is determined by number of pixels.
+	 * This is used to determine what quality to download videos from, quality is determined by bitrate.
 	 * @author Jonathan Yin
 	 *
 	 */
 	public enum VideoQuality {
 		/**
-		 * Smallest resolution
+		 * Smallest bitrate
 		 */
 		VERYLOW,
 		/**
-		 * 25th percentile in resolution
+		 * 25th percentile in bitrate
 		 */
 		LOW,
 		/**
-		 * 50th percentile in resolution
+		 * 50th percentile in bitrate
 		 */
 		MEDIUM,
 		/**
-		 * 75th percentile in resolution
+		 * 75th percentile in bitrate
 		 */
 		HIGH, 
 		/**
-		 * Best resolution
+		 * Best bitrate
 		 */
 		HIGHEST;
 	}
@@ -82,7 +82,7 @@ public class TweetDownloaderImproved {
 	/**
 	 * Constructs a reusable downloader client for Status objects.
 	 * @param filepath The directory to dump the downloaded files 
-	 * @param threads The number of threads to run the downloader with (<= 1 is considered single threaded)
+	 * @param threads The number of threads to run the downloader with (fewer or equal to 1 is considered single threaded)
 	 * @param limit Limit in bytes of amount of data to download, -1 is considered as no limit.
 	 * @param quality The quality to download videos from.
 	 */
@@ -97,7 +97,7 @@ public class TweetDownloaderImproved {
 	/**
 	 * Constructs a reusable downloader client for Status objects. Quality defaults to the highest resolution possible.
 	 * @param filepath The directory to dump the downloaded files 
-	 * @param threads The number of threads to run the downloader with (<= 1 is considered single threaded)
+	 * @param threads The number of threads to run the downloader with (fewer or equal to 1 is considered single threaded)
 	 * @param limit Limit in bytes of amount of data to download, -1 is considered as no limit.
 	 */
 	public TweetDownloaderImproved(String filepath, int threads, long limit) {
@@ -113,17 +113,14 @@ public class TweetDownloaderImproved {
 	 * exist yet. Quality defaults to the highest resolution possible.
 	 * 
 	 * @param threads
-	 *            Number of threads to run the downloader with (<= 1 is
+	 *            Number of threads to run the downloader with ( fewer or equal to 1 is
 	 *            interpreted as single threaded)
 	 * @param limit
 	 *            Limit in bytes of the amount of data to download from
 	 *            statuses.
 	 */
 	public TweetDownloaderImproved(int threads, long limit) {
-		Preferences prefs = Preferences.userRoot();
-		prefs = prefs.node(UtilityMethods.PREFERENCES_PATH);
-		this.prefs = prefs;
-		filepath = prefs.get("defaultpath", "./twitterdump");
+		filepath = (".");
 		Path path = Paths.get(filepath);
 		filepath = path.toAbsolutePath().normalize().toString();
 		//System.out.println(filepath);
@@ -138,7 +135,7 @@ public class TweetDownloaderImproved {
 	 * exist yet.
 	 * 
 	 * @param threads
-	 *            Number of threads to run the downloader with (<= 1 is
+	 *            Number of threads to run the downloader with (fewer or equal to 1 is
 	 *            interpreted as single threaded)
 	 * @param limit
 	 *            Limit in bytes of the amount of data to download from
@@ -147,10 +144,7 @@ public class TweetDownloaderImproved {
 	 * 			  The video resolution quality to download videos at.
 	 */
 	public TweetDownloaderImproved(int threads, long limit, VideoQuality quality) {
-		Preferences prefs = Preferences.userRoot();
-		prefs = prefs.node(UtilityMethods.PREFERENCES_PATH);
-		this.prefs = prefs;
-		filepath = prefs.get("defaultpath", "./twitterdump");
+		filepath = ".";
 		Path path = Paths.get(filepath);
 		filepath = path.toAbsolutePath().normalize().toString();
 		//System.out.println(filepath);
@@ -167,11 +161,8 @@ public class TweetDownloaderImproved {
 	 *            Limit in bytes of the amount of data to download from
 	 *            statuses.
 	 */
-	public TweetDownloaderImproved(long limit) {
-		Preferences prefs = Preferences.userRoot();
-		prefs = prefs.node(UtilityMethods.PREFERENCES_PATH);
-		this.prefs = prefs;
-		filepath = prefs.get("defaultpath", "./twitterdump");
+	public TweetDownloaderImproved(long limit) {;
+		filepath =".";
 		Path path = Paths.get(filepath);
 		filepath = path.toAbsolutePath().normalize().toString();
 		//System.out.println(filepath);
@@ -193,7 +184,7 @@ public class TweetDownloaderImproved {
 		List<URL> medias = new ArrayList<>();
 		for (MediaEntity entity : entities) {
 			if (entity.getType().equals("video")) {
-				medias.add(downloadVideo(entity.getVideoVariants(), VideoQuality.HIGHEST));
+				medias.add(downloadVideo(entity.getVideoVariants(), quality));
 			} else {
 				medias.add(downloadImage(entity));
 			}
@@ -564,7 +555,7 @@ public class TweetDownloaderImproved {
 	}
 
 	/**
-	 * Changes the number of threads to run when starting a download. (<=1 will be singlethreaded)
+	 * Changes the number of threads to run when starting a download. (fewer or equal to 1 will be singlethreaded)
 	 * @param threads The new number of threads to run per download
 	 */
 	public void setThreads(int threads) {
@@ -623,6 +614,7 @@ public class TweetDownloaderImproved {
 				}
 			}
 		} catch (IOException e) {
+			e.printStackTrace();
 			return false;
 		}
 	}

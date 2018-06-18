@@ -8,7 +8,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import ratelimit.FollowersLimited;
 import twitter4j.IDs;
 import twitter4j.Paging;
 import twitter4j.RateLimitStatus;
@@ -25,6 +24,31 @@ public class TwitterStatistics {
 	public static Twitter twitter = ConfigTwitter.getTwitter();
 
 	/**
+	 * Returns the intersection of 2 user Id sets contained in UserLimited Objects
+	 * @param set1 The first UserLimited set
+	 * @param set2 The Second UserLimited set
+	 * @return A Set of longs referring to userids that both sets have in common.
+	 */
+	public Set<Long> UserIntersection(UserLimited set1, UserLimited set2)
+	{
+		if (set1.getFollowers() == null)
+		{
+			return set2.getFollowers();
+		}
+		else if (set2.getFollowers() == null)
+		{
+			return set1.getFollowers();
+		}
+		else
+		{
+			Set<Long> clone = new HashSet<>();
+			clone.addAll(set1.getFollowers());
+			clone.retainAll(set2.getFollowers());
+			return clone;
+		}
+	}
+	
+	/**
 	 * Retrieves as many followers as possible by their IDs. For the purpose of
 	 * this application, there isn't a need for the full User object.
 	 * 
@@ -32,9 +56,9 @@ public class TwitterStatistics {
 	 *            Screenname to retrieve Users from.
 	 * @return A set containing unique
 	 */
-	public FollowersLimited getFollowers(String handle) {
+	public UserLimited getFollowers(String handle) {
 		Set<Long> results = new HashSet<>();
-		FollowersLimited limited = new FollowersLimited();
+		UserLimited limited = new UserLimited();
 		limited.setFollowers(results);
 		limited.setLimited(false);
 		try {
@@ -58,15 +82,17 @@ public class TwitterStatistics {
 			limited.setFollowers(results);
 			return limited;
 		} catch (TwitterException e) {
-			System.out.println("Rate Limited, partial results");
+			UtilityMethods.global.warning("Rate Limited, partial results returned!");
 			limited.setLimited(true);
 			return limited;
 		}
 	}
+	
+	
 
-	public FollowersLimited getFollowing(String handle) {
+	public UserLimited getFollowing(String handle) {
 		Set<Long> results = new HashSet<>();
-		FollowersLimited limited = new FollowersLimited();
+		UserLimited limited = new UserLimited();
 		long nextCursor = -1;
 		limited.setFollowers(results);
 		limited.setLastCursor(nextCursor);
@@ -141,121 +167,6 @@ public class TwitterStatistics {
 			return -1;
 		}
 	}
-
-	/**
-	 * Retrieves all tweets (that Twitter will allow me to retrieve) from a
-	 * specified handle name it is sorted in reverse chronological order.;
-	 * 
-	 * @param handle
-	 *            Twitter Account Name to retrieve from
-	 * @return As many tweets as retrievable based on Twitter's API (3200) or
-	 *         less based on number of tweets handle has made.
-	 */
-	public List<Status> getAllTweets(String handle) {
-		try {
-			ResponseList<Status> status = twitter.getUserTimeline(handle);
-			long maxId = status.get(status.size() - 1).getId();
-			// Must retrieve last 3200 tweets through 16 pages of 200 tweets
-			// each
-			// For sake of flexibility, we simply retrieve tweets until twitter
-			// refuses to allow new tweets
-			while (true) {
-				Paging paging = new Paging();
-				paging.setCount(200);
-				// System.out.println(paging.getMaxId());
-				// System.out.println(maxId);
-				paging.setMaxId(maxId);
-				ResponseList<Status> newStatuses = twitter.getUserTimeline(handle, paging);
-				// System.out.println("SIZE: " + newStatuses.size());
-				long tempMaxId = newStatuses.get(newStatuses.size() - 1).getId();
-				if (tempMaxId == maxId) {
-					break;
-				} else {
-					maxId = tempMaxId;
-				}
-				status.addAll(newStatuses);
-			}
-			return status;
-		} catch (TwitterException e) {
-			System.out.println("Error occured");
-			e.printStackTrace();
-			return null;
-		}
-	}
-
-	/**
-	 * Variation of getAllTweets which also accepts a limit to the number of
-	 * tweets retrieved.
-	 * 
-	 * @param handle
-	 *            Twitter Account Name to retrieve from
-	 * @param limit
-	 * @return
-	 */
-	public List<Status> getAllTweets(String handle, int limit) {
-		if (limit <= 0) {
-			return null;
-		}
-		List<Status> firstStatuses = null;
-		try {
-			firstStatuses = twitter.getUserTimeline(handle);
-			long maxId = firstStatuses.get(firstStatuses.size() - 1).getId();
-			if (limit <= 20) {
-				limit -= 1;
-				return firstStatuses.subList(0, limit);
-			} else {
-				// Retrieved 20 tweets so subtract 20 from limit
-				limit -= 20;
-				while (limit > 0) {
-					Paging paging = new Paging();
-					int count = limit;
-					if (count > 200) {
-						count = 200;
-					}
-					paging.setCount(count);
-					paging.setMaxId(maxId);
-					List<Status> statuses = twitter.getUserTimeline(handle, paging);
-					long tempMaxId = statuses.get(statuses.size() - 1).getId();
-					if (tempMaxId == maxId) {
-						break;
-					} else {
-						maxId = tempMaxId;
-					}
-					limit -= count;
-					/**
-					 * System.out.println("Total Retrieved: " +
-					 * firstStatuses.size() + " tweets.");
-					 * System.out.println("Retrieved in this iteration " +
-					 * statuses.size() + " tweets"); System.out.println("LIMIT:
-					 * " + limit);
-					 */
-					firstStatuses.addAll(statuses);
-				}
-				return firstStatuses;
-			}
-
-		} catch (TwitterException e) {
-			e.printStackTrace();
-			System.err.println("Could not access Twitter API");
-			return null;
-		}
-	}
-
-	/*
-	 * public List<Status> getAllTweetsTest(String query) { Query searchQuery =
-	 * new Query("from:"+query); searchQuery.setLang("en");
-	 * searchQuery.setCount(100); QueryResult result; try { result =
-	 * twitter.search(searchQuery); List<Status> statuses = result.getTweets();
-	 * //long maxId = statuses.get(statuses.size() - 1).getId();
-	 * //searchQuery.setMaxId(maxId - 1); //result =
-	 * twitter.search(searchQuery); statuses = result.getTweets();
-	 * 
-	 * return statuses; } catch (
-	 * 
-	 * TwitterException e) {
-	 * System.err.println("Something went wrong with accessing tweets");
-	 * e.printStackTrace(); return null; } }
-	 */
 
 	/**
 	 * Filters out unwanted tweets as specified in the criteria given.
