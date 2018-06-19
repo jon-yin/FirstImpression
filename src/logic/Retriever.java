@@ -190,7 +190,6 @@ public class Retriever {
 		long maxID = -1;
 		try {
 			while (max > 0 || unlimited) {
-				System.out.println(collectiveResults.size());
 				// Logic is as follows, if unlimited, retrieve 100 at a time
 				// otherwise
 				// if max (tweets left)> 100 set to 100 (this is twitter's
@@ -340,29 +339,49 @@ public class Retriever {
 		SearchLimited lim = searchRL(query, max, lang, type);
 		return lim == null ? null : lim.getStatuses();
 	}
-	
+
 	/**
-	 * Method to convert an absolute url 
+	 * Method to convert a List of absolute urls to tweets to Status objects.
+	 * 
 	 * @param urls
-	 * @return
+	 *            The list of urls to process.
+	 * @param immutable
+	 *            If true, then a copy of urls will be used and the original
+	 *            list of urls will not be modified (this is less efficient). If
+	 *            false, the supplied list of urls will be modified.
+	 * @return List of hydrated (full) tweets from urls.
 	 */
-	public static List<Status> urlToStatus(List<String> urls)
-	{
+	public static List<Status> urlToStatus(List<String> urls, boolean immutable) {
 		List<Status> statuses = new ArrayList<>();
+		List<String> data;
+		if (immutable) {
+			data = new ArrayList<>();
+			data.addAll(urls);
+		} else {
+			data = urls;
+		}
 		int lookups = UtilityMethods.getRateLimit(twitter, "/statuses/lookup");
+		data.replaceAll((url) -> url.substring(url.lastIndexOf("/") + 1, url.length()));
 		int iterations = 0;
-		if (lookups < urls.size()/100.0)
-		{
+		if (lookups < data.size() / 100.0) {
 			UtilityMethods.global.warning("Ratelimited results, only " + lookups * 100 + " results will be returned");
 			iterations = lookups;
+		} else {
+			iterations = (int) (Math.ceil(urls.size() / 100.0));
 		}
-		
-		urls.replaceAll((url) -> url.substring(url.lastIndexOf("/"), url.length()));
-		for (String url: urls)
-		{
-			long id = Long.parseLong(url.substring(url.lastIndexOf("/"), url.length()));
+		for (int i = 0; i < iterations; i++) {
+			int startindex = i * 100;
+			int endindex = (i + 1) * 100;
+			if (endindex >= data.size()) {
+				endindex = data.size();
+			}
+			List<String> strings = data.subList(startindex, endindex);
+			long[] ids = new long[strings.size()];
+			for (int j = 0; j < ids.length; j++) {
+				ids[j] = Long.parseLong(strings.get(j));
+			}
 			try {
-				statuses.addAll(twitter.lookup(id));
+				statuses.addAll(twitter.lookup(ids));
 			} catch (TwitterException e) {
 				e.printStackTrace();
 			}

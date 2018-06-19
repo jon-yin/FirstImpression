@@ -16,13 +16,14 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.prefs.Preferences;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -49,9 +50,14 @@ public class TweetDownloaderImproved {
 	private long limit;
 	private long left;
 	private VideoQuality quality;
-	
+	private AtomicInteger finished;
+	private HashSet<Long> downloaded;
+	private int numStatuses;
+
 	/**
-	 * This is used to determine what quality to download videos from, quality is determined by bitrate.
+	 * This is used to determine what quality to download videos from, quality
+	 * is determined by bitrate.
+	 * 
 	 * @author Jonathan Yin
 	 *
 	 */
@@ -71,20 +77,26 @@ public class TweetDownloaderImproved {
 		/**
 		 * 75th percentile in bitrate
 		 */
-		HIGH, 
+		HIGH,
 		/**
 		 * Best bitrate
 		 */
 		HIGHEST;
 	}
 
-	
 	/**
 	 * Constructs a reusable downloader client for Status objects.
-	 * @param filepath The directory to dump the downloaded files 
-	 * @param threads The number of threads to run the downloader with (fewer or equal to 1 is considered single threaded)
-	 * @param limit Limit in bytes of amount of data to download, -1 is considered as no limit.
-	 * @param quality The quality to download videos from.
+	 * 
+	 * @param filepath
+	 *            The directory to dump the downloaded files
+	 * @param threads
+	 *            The number of threads to run the downloader with (fewer or
+	 *            equal to 1 is considered single threaded)
+	 * @param limit
+	 *            Limit in bytes of amount of data to download, -1 is considered
+	 *            as no limit.
+	 * @param quality
+	 *            The quality to download videos from.
 	 */
 	public TweetDownloaderImproved(String filepath, int threads, long limit, VideoQuality quality) {
 		this.filepath = filepath;
@@ -93,12 +105,18 @@ public class TweetDownloaderImproved {
 		this.quality = quality;
 	}
 
-	
 	/**
-	 * Constructs a reusable downloader client for Status objects. Quality defaults to the highest resolution possible.
-	 * @param filepath The directory to dump the downloaded files 
-	 * @param threads The number of threads to run the downloader with (fewer or equal to 1 is considered single threaded)
-	 * @param limit Limit in bytes of amount of data to download, -1 is considered as no limit.
+	 * Constructs a reusable downloader client for Status objects. Quality
+	 * defaults to the highest resolution possible.
+	 * 
+	 * @param filepath
+	 *            The directory to dump the downloaded files
+	 * @param threads
+	 *            The number of threads to run the downloader with (fewer or
+	 *            equal to 1 is considered single threaded)
+	 * @param limit
+	 *            Limit in bytes of amount of data to download, -1 is considered
+	 *            as no limit.
 	 */
 	public TweetDownloaderImproved(String filepath, int threads, long limit) {
 		this.filepath = filepath;
@@ -113,8 +131,8 @@ public class TweetDownloaderImproved {
 	 * exist yet. Quality defaults to the highest resolution possible.
 	 * 
 	 * @param threads
-	 *            Number of threads to run the downloader with ( fewer or equal to 1 is
-	 *            interpreted as single threaded)
+	 *            Number of threads to run the downloader with ( fewer or equal
+	 *            to 1 is interpreted as single threaded)
 	 * @param limit
 	 *            Limit in bytes of the amount of data to download from
 	 *            statuses.
@@ -123,49 +141,52 @@ public class TweetDownloaderImproved {
 		filepath = (".");
 		Path path = Paths.get(filepath);
 		filepath = path.toAbsolutePath().normalize().toString();
-		//System.out.println(filepath);
+		// System.out.println(filepath);
 		this.threads = threads;
 		this.limit = limit;
 		quality = VideoQuality.HIGHEST;
 	}
-	
+
 	/**
 	 * Constructs a reusable downloader client for Status objects. Filepath is
 	 * drawn either from preferences or in the cwd if such a preference doesn't
 	 * exist yet.
 	 * 
 	 * @param threads
-	 *            Number of threads to run the downloader with (fewer or equal to 1 is
-	 *            interpreted as single threaded)
+	 *            Number of threads to run the downloader with (fewer or equal
+	 *            to 1 is interpreted as single threaded)
 	 * @param limit
 	 *            Limit in bytes of the amount of data to download from
 	 *            statuses.
 	 * @param quality
-	 * 			  The video resolution quality to download videos at.
+	 *            The video resolution quality to download videos at.
 	 */
 	public TweetDownloaderImproved(int threads, long limit, VideoQuality quality) {
 		filepath = ".";
 		Path path = Paths.get(filepath);
 		filepath = path.toAbsolutePath().normalize().toString();
-		//System.out.println(filepath);
+		// System.out.println(filepath);
 		this.threads = threads;
 		this.limit = limit;
-		quality = VideoQuality.HIGHEST;
+		this.quality = quality;
 	}
-	
+
 	/**
 	 * Constructs a reusable downloader client for Status objects. Filepath is
 	 * drawn either from preferences or in the cwd if such a preference doesn't
-	 * exist yet. This will run single-threadly though this can be altered with setThreads.
+	 * exist yet. This will run single-threadly though this can be altered with
+	 * setThreads.
+	 * 
 	 * @param limit
 	 *            Limit in bytes of the amount of data to download from
 	 *            statuses.
 	 */
-	public TweetDownloaderImproved(long limit) {;
-		filepath =".";
+	public TweetDownloaderImproved(long limit) {
+		;
+		filepath = ".";
 		Path path = Paths.get(filepath);
 		filepath = path.toAbsolutePath().normalize().toString();
-		//System.out.println(filepath);
+		// System.out.println(filepath);
 		this.threads = 1;
 		this.limit = limit;
 		quality = VideoQuality.HIGHEST;
@@ -268,7 +289,7 @@ public class TweetDownloaderImproved {
 	}
 
 	private DownloadInfo checkTweetSize(Status status) {
-		String body = status.getText();
+		String body = UtilityMethods.getDisplayText(status);
 		long totalLength = body.getBytes().length;
 		List<URL> medias = getMedia(status);
 		if (!(medias == null)) {
@@ -282,34 +303,47 @@ public class TweetDownloaderImproved {
 	}
 
 	private long downloadTweets(List<Status> statuses, boolean mediaOnly, ZipOutputStream zstream, File dest) {
-		left = limit;
+		// left = limit;
 		long totalSize = 0;
 		for (Status status : statuses) {
-			boolean download = false;
+			signal();
+			if (status.isRetweet()) {
+				status = status.getRetweetedStatus();
+			}
+			synchronized (downloaded) {
+				//Can save time by not downloading data to determine size.
+				if (downloaded.contains(status.getId()))
+				{
+					continue;
+				}
+			}
 			DownloadInfo info = checkTweetSize(status);
 			long size = info.getSize();
 			if (mediaOnly) {
 				size -= info.getBody().getBytes().length;
 			}
-			if (info != null && limit != -1) {
-				synchronized (this) {
-					if (size <= left) {
-						left -= size;
-						download = true;
+			synchronized (downloaded) {
+				if (!downloaded.contains(status.getId())) {
+					if (limit != -1) {
+						if (size <= left) {
+							left -= size;
+							downloaded.add(status.getId());
+						} else {
+							downloaded.add(status.getId());
+							continue;
+						}
+					} else {
+						downloaded.add(status.getId());
 					}
+				} else {
+					continue;
+				}
+			}
 
-				}
-			} else {
-				download = true;
+			String date = UtilityMethods.convertDateToLocalDateTime(status.getCreatedAt()).toString();
+			if (downloadFiles(dest, status.getUser().getScreenName() + status.getId(), info, zstream, mediaOnly)) {
+				totalSize += size;
 			}
-			if (download) {
-				String date = UtilityMethods.convertDateToLocalDateTime(status.getCreatedAt()).toString();
-				String windowsFriendly = date.replaceAll(":", "-");
-				if (downloadFiles(dest, status.getUser().getScreenName() + windowsFriendly, info, zstream, mediaOnly)) {
-					totalSize += size;
-				}
-			}
-			download = false;
 		}
 		return totalSize;
 	}
@@ -317,28 +351,38 @@ public class TweetDownloaderImproved {
 	private long downloadTweetsTextOnly(List<Status> statuses, ZipOutputStream zstream, File dest) {
 		left = limit;
 		long totalSize = 0;
-		boolean download = false;
 		for (Status status : statuses) {
-			long size = status.getText().getBytes().length;
-			if (limit != -1) {
-				synchronized (this) {
-					if (size <= left) {
-						left -= size;
-						download = true;
+			signal();
+			if (status.isRetweet()) {
+				status = status.getRetweetedStatus();
+			}
+			String body = UtilityMethods.getDisplayText(status);
+			long size = body.getBytes().length;
+			synchronized (downloaded) {
+				if (!downloaded.contains(status.getId())) {
+					if (limit != -1) {
+						if (size <= left) {
+							left -= size;
+							downloaded.add(status.getId());
+						} else {
+							// Don't download, go to next iteration.
+							downloaded.add(status.getId());
+							continue;
+						}
+					} else {
+						downloaded.add(status.getId());
 					}
-				}
-			} else {
-				download = true;
-			}
-			if (download) {
-				String date = UtilityMethods.convertDateToLocalDateTime(status.getCreatedAt()).toString();
-				String windowsFriendly = date.replaceAll(":", "-");
-				if (downloadFilesTextOnly(dest, status.getUser().getScreenName() + windowsFriendly, status.getText(),
-						zstream)) {
-					totalSize += size;
+				} else {
+					// Don't download, go to next iteration.
+					continue;
 				}
 			}
-			download = false;
+
+			String date = UtilityMethods.convertDateToLocalDateTime(status.getCreatedAt()).toString();
+
+			if (downloadFilesTextOnly(dest, status.getUser().getScreenName() + status.getId(), body, zstream)) {
+				totalSize += size;
+			}
 		}
 		return totalSize;
 	}
@@ -374,12 +418,9 @@ public class TweetDownloaderImproved {
 					FileWriter stream = new FileWriter(new File(parent, bodyname));
 					stream.write(body);
 					stream.close();
-				}
-				else
-				{
+				} else {
 					String bodyname = name + "-text.txt";
-					if (!writeZipEntry(zip, bodyname, body.getBytes(), false))
-					{
+					if (!writeZipEntry(zip, bodyname, body.getBytes(), false)) {
 						return false;
 					}
 				}
@@ -388,16 +429,14 @@ public class TweetDownloaderImproved {
 			List<byte[]> data = info.getDatas();
 			for (int i = 0; i < urls.size(); i++) {
 				String extension = getExtensionFromURL(urls.get(i));
-				if (zip == null){
+				if (zip == null) {
 					String medianame = "/" + name + "-media" + i + extension;
 					File media = new File(parent, medianame);
 					BufferedOutputStream outputstream = new BufferedOutputStream(new FileOutputStream(media));
 					outputstream.write(data.get(i));
 					outputstream.flush();
 					outputstream.close();
-				}
-				else
-				{
+				} else {
 					String medianame = name + "-media" + i + extension;
 					writeZipEntry(zip, medianame, data.get(i), false);
 				}
@@ -471,9 +510,13 @@ public class TweetDownloaderImproved {
 		String dirname = LocalDateTime.now().toString().replaceAll(":", "-");
 		// a zip was requested, make a zipoutputstream to contain the data.
 		File destFile = new File(filepath, "/" + dirname);
+		// Create hashset to ensure we don't download duplicate tweets.
+		downloaded = new HashSet<>();
+		finished = new AtomicInteger();
+		numStatuses=statuses.size();
 		ZipOutputStream stream = null;
 		if (zip) {
-			//Create a zip stream
+			// Create a zip stream
 			try {
 				stream = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(destFile + ".zip")));
 				stream.setLevel(9);
@@ -529,9 +572,16 @@ public class TweetDownloaderImproved {
 			return totalSize;
 		}
 	}
-
+	
+	private void signal()
+	{
+		int val = finished.incrementAndGet();
+		UtilityMethods.info(val+ "/"+numStatuses+" finished");
+	}
+	
 	/**
 	 * Gets the directory where downloaded data will be delivered to
+	 * 
 	 * @return directory as String
 	 */
 	public String getFilepath() {
@@ -540,7 +590,9 @@ public class TweetDownloaderImproved {
 
 	/**
 	 * Changes the directory where downloaded data will be delivered to
-	 * @param filepath New directory to dump data.
+	 * 
+	 * @param filepath
+	 *            New directory to dump data.
 	 */
 	public void setFilepath(String filepath) {
 		this.filepath = filepath;
@@ -548,6 +600,7 @@ public class TweetDownloaderImproved {
 
 	/**
 	 * Gets the number of threads to run when starting a download
+	 * 
 	 * @return number of threads to run per download
 	 */
 	public int getThreads() {
@@ -555,33 +608,41 @@ public class TweetDownloaderImproved {
 	}
 
 	/**
-	 * Changes the number of threads to run when starting a download. (fewer or equal to 1 will be singlethreaded)
-	 * @param threads The new number of threads to run per download
+	 * Changes the number of threads to run when starting a download. (fewer or
+	 * equal to 1 will be singlethreaded)
+	 * 
+	 * @param threads
+	 *            The new number of threads to run per download
 	 */
 	public void setThreads(int threads) {
 		this.threads = threads;
 	}
-	
+
 	/**
 	 * The max number of bytes allowable to download per startDownload
+	 * 
 	 * @return max number of bytes to download
 	 */
 
 	public long getLimit() {
 		return limit;
 	}
-	
+
 	/**
-	 * Changes the max number of bytes to download per download, -1 is considered no limit.
-	 * @param limit The new max number of bytes to download.
+	 * Changes the max number of bytes to download per download, -1 is
+	 * considered no limit.
+	 * 
+	 * @param limit
+	 *            The new max number of bytes to download.
 	 */
 
 	public void setLimit(long limit) {
 		this.limit = limit;
 	}
-	
+
 	/**
 	 * Gets the preferred video quality to download from.
+	 * 
 	 * @return The video quality that future videos will be downloaded from.
 	 */
 	public VideoQuality getQuality() {
@@ -590,11 +651,14 @@ public class TweetDownloaderImproved {
 
 	/**
 	 * Changes the quality from which to download videos from.
-	 * @param quality The new quality to download videos from.
+	 * 
+	 * @param quality
+	 *            The new quality to download videos from.
 	 */
 	public void setQuality(VideoQuality quality) {
 		this.quality = quality;
 	}
+	
 
 	// Writes a zip entry in a way that is concurrency safe. (lock each entry
 	// write). Assumes that name is well formatted to zip directory + files
@@ -646,7 +710,5 @@ public class TweetDownloaderImproved {
 		}
 
 	}
-	
-	
 
 }

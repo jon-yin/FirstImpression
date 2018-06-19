@@ -32,8 +32,7 @@ public class ConfigTwitter {
 	public static TwitterFactory createFactory()
 	{
 		ConfigurationBuilder builder = new ConfigurationBuilder().
-				setApplicationOnlyAuthEnabled(true).
-				setTweetModeExtended(true)
+				setApplicationOnlyAuthEnabled(true)
 				.setOAuthConsumerKey(CONSUMER_KEY)
 				.setOAuthConsumerSecret(CONSUMER_SECRET)
 				;
