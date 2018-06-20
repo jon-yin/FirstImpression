@@ -12,7 +12,6 @@ import twitter4j.TwitterException;
 
 public class UtilityMethods {
 
-	public static final String PREFERENCES_PATH = "impression.first.my";
 	public static Logger global = Logger.getGlobal();
 
 	public static LocalDateTime convertDateToLocalDateTime(Date input) {
@@ -51,5 +50,10 @@ public class UtilityMethods {
 	public static synchronized void info(String msg)
 	{
 		global.info(msg);
+	}
+	
+	public static synchronized void warn(String msg)
+	{
+		global.warning(msg);
 	}
 }

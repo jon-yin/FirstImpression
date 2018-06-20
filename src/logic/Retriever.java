@@ -81,6 +81,7 @@ public class Retriever {
 					results.setLimit(limit);
 					if (ratelimit == 0) {
 						results.setLimited(true);
+						UtilityMethods.warn("Incomplete Results");
 						return results;
 					}
 					List<Status> statuses = twitter.getUserTimeline(handle, paging);
@@ -105,10 +106,22 @@ public class Retriever {
 			}
 
 		} catch (TwitterException e) {
+			UtilityMethods.warn("Incomplete Results");
 			return results;
 		}
 	}
 
+	/**
+	 * Attempts to complete retrieving tweets from a specified handle's
+	 * timeline.
+	 * 
+	 * @param limited
+	 *            Incomplete results obtained from a failed call to
+	 *            {@link Retriever#getAllTweetsRL(String, int)} or
+	 *            {@link Retriever#getAllTweetsRL(String)}
+	 * @return An attempt at completing the previous failed call. The results
+	 *         returned may or may not be complete.
+	 */
 	public static TimelineLimited completeTweets(TimelineLimited limited) {
 		if (limited == null) {
 			return null;
@@ -152,6 +165,94 @@ public class Retriever {
 					return limited;
 				}
 			}
+		}
+	}
+
+	/**
+	 * Retrieves liked tweets of the specified user. Up to limit number of
+	 * tweets.
+	 * 
+	 * @param handle
+	 *            The handle from which to retrieve liked tweets from.
+	 * @param limit
+	 *            The number of tweets to retrieve up to. -1 specifies to
+	 *            retrieve as many as possible.
+	 * @return List of liked tweets from this handle, up to limit.
+	 */
+	public static LikedLimited getLikedTweetsRL(String handle, int limit) {
+		int ratelimit = UtilityMethods.getRateLimit(twitter, "/favorites/list");
+		LikedLimited likedLim = new LikedLimited();
+		long maxId = -1;
+		Paging paging = new Paging();
+		List<Status> results = new ArrayList<>();
+		likedLim.setHandle(handle);
+		likedLim.setStatuses(results);
+		boolean unlimited = limit == -1;
+		try {
+			while (limit > 0 || unlimited) {
+				int count = unlimited ? 200 : (limit > 200 ? 200 : limit);
+				paging.setCount(count);
+				paging.setMaxId(maxId);
+				likedLim.setMaxId(maxId);
+				likedLim.setLimit(limit);
+				if (ratelimit == 0) {
+					likedLim.setLimited(true);
+					return likedLim;
+				}
+				List<Status> status = twitter.getFavorites(handle, paging);
+				if (status.size() == 0) {
+					break;
+				}
+				results.addAll(status);
+				int last = status.size() - 1;
+				maxId = status.get(last).getId() - 1;
+				limit -= status.size();
+				ratelimit--;
+			}
+			likedLim.setLimited(false);
+			return likedLim;
+		} catch (TwitterException e) {
+			e.printStackTrace();
+			return likedLim;
+		}
+	}
+
+	public static LikedLimited completeResults(LikedLimited lim) {
+		if (lim == null || !lim.isLimited()) {
+			return lim;
+		}
+		int ratelimit = UtilityMethods.getRateLimit(twitter, "/favorites/list");
+		List<Status> results = lim.getStatuses();
+		String handle = lim.getHandle();
+		long maxId = lim.getMaxId();
+		int limit = lim.getLimit();
+		Paging paging = new Paging();
+		boolean unlimited = limit < 0;
+		try {
+			while (limit > 0 || unlimited) {
+				int count = unlimited ? 200 : (limit > 200 ? 200 : limit);
+				paging.setCount(count);
+				paging.setMaxId(maxId);
+				lim.setMaxId(maxId);
+				lim.setLimit(limit);
+				if (ratelimit == 0) {
+					return lim;
+				}
+				List<Status> status = twitter.getFavorites(handle, paging);
+				if (status.size() == 0) {
+					break;
+				}
+				results.addAll(status);
+				int last = status.size() - 1;
+				maxId = status.get(last).getId() - 1;
+				limit -= status.size();
+				ratelimit--;
+			}
+			lim.setLimited(false);
+			return lim;
+		} catch (TwitterException e) {
+			e.printStackTrace();
+			return lim;
 		}
 	}
 
@@ -341,6 +442,25 @@ public class Retriever {
 	}
 
 	/**
+	 * This method is a simpler version of
+	 * {@link #getLikedTweetsRL(String, int)}. Although still rate limit
+	 * compliant, this will return a List<Status> instead of an intermediary
+	 * LikedLimited object. If limited, the results cannot be completed with
+	 * this method.
+	 * @param handle The username to retrieve liked tweets from.
+	 * @param limit The maximum number of tweets to retrieve. -1 means no limit.
+	 * @return List of tweets liked by the account with this username. 
+	 */
+	public static List<Status> getLikedTweets(String handle, int limit) {
+		LikedLimited lim = getLikedTweetsRL(handle, limit);
+		if (lim == null)
+		{
+			return null;
+		}
+		return lim.getStatuses();
+	}
+
+	/**
 	 * Method to convert a List of absolute urls to tweets to Status objects.
 	 * 
 	 * @param urls
@@ -388,4 +508,5 @@ public class Retriever {
 		}
 		return statuses;
 	}
+
 }

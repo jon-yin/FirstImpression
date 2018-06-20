@@ -169,20 +169,6 @@ public class TwitterStatistics {
 	}
 
 	/**
-	 * Filters out unwanted tweets as specified in the criteria given.
-	 * 
-	 * @param criteria
-	 *            The criteria used to reject/accept tweets.
-	 * @param statuses
-	 *            The List of tweets to filter.
-	 * @return Filtered List of tweets based off the FilterCriteria
-	 */
-	public List<Status> filterOut(FilterCriteria criteria, List<Status> statuses) {
-		Stream<Status> stream = statuses.stream();
-		return stream.filter(status -> criteria.accept(status)).collect(Collectors.toList());
-	}
-
-	/**
 	 * Retrieves Statuses that have recieved a number of favorites that is
 	 * considered an outlier. Inner outliers are as defined as being less than
 	 * the lower outer fence: Q1 - 1.5*IQ or greater than the upper outer fence:
