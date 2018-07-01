@@ -4,15 +4,16 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import twitter4j.Status;
 
 public class Filterer {
-	private List<Status> statuses;
+	private Stream<Status> statuses;
 	
 	public Filterer (List<Status> statuses)
 	{
-		this.statuses = statuses;
+		this.statuses = statuses.stream();
 	}
 	
 	public static Predicate<Status> getSensitive()
@@ -107,16 +108,17 @@ public class Filterer {
 	
 	public Filterer filter(Predicate<Status> pred)
 	{
-		statuses = statuses.stream().filter(pred).collect(Collectors.toList());
+		statuses = statuses.filter(pred);
 		return this;
 	}
-
-	public List<Status> getStatuses() {
-		return statuses;
+	
+	public List<Status> collectStatuses()
+	{
+		return statuses.collect(Collectors.toList());
 	}
 
 	public void setStatuses(List<Status> statuses) {
-		this.statuses = statuses;
+		this.statuses = statuses.stream();
 	}
 	
 }

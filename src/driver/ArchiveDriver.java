@@ -1,32 +1,28 @@
 package driver;
 
+import java.io.PrintStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.List;
 
-import logic.Filterer;
 import logic.Retriever;
-import logic.TweetDownloaderImproved;
 import twitter4j.Status;
-import twitter4j.TwitterException;
-import twitter4j.Query.ResultType;
 
 public class ArchiveDriver {
 	
 	public static final String FILEPATH = "C:\\Users\\hgfddfgh\\Documents\\ReadForProject\\TwitterDump";
 	
-	public static void main(String[] args) throws TwitterException {
-		List<Status> statuses = Retriever.search("persona", 1000, "en", ResultType.popular);
-		Filterer filter = new Filterer(statuses);
-		filter.filter(Filterer.excludeRetweets())
-		.filter(Filterer.atLeastLikes(500));
-		List<Status> filtered = filter.getStatuses();
-		for (Status status : filtered)
-		{
-			if (status.getFavoriteCount() < 500)
-			{
-				System.out.println("ERROR");
-			}
-		}
-		TweetDownloaderImproved downloader = new TweetDownloaderImproved(FILEPATH, 10, -1);
-		downloader.startDownload(filtered, false, false,false);
+	public static void main(String[] args) throws Exception {
+		List<String> urls = new ArrayList<>();
+		urls.add("https://twitter.com/a_broken_fan/status/1011466277225787392");
+		List<Status> st = Retriever.urlToStatus(urls, false);
+		String text = st.get(0).getText();
+		System.out.println(text);
+		
+		
 	}
 }
