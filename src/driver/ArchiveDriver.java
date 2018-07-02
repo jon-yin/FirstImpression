@@ -17,11 +17,7 @@ public class ArchiveDriver {
 	public static final String FILEPATH = "C:\\Users\\hgfddfgh\\Documents\\ReadForProject\\TwitterDump";
 	
 	public static void main(String[] args) throws Exception {
-		List<String> urls = new ArrayList<>();
-		urls.add("https://twitter.com/a_broken_fan/status/1011466277225787392");
-		List<Status> st = Retriever.urlToStatus(urls, false);
-		String text = st.get(0).getText();
-		System.out.println(text);
+		Retriever.getAllTweets("realDonaldTrump", 200);
 		
 		
 	}
